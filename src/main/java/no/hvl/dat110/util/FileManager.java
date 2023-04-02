@@ -65,6 +65,10 @@ public class FileManager {
 		// hash the replica
 		
 		// store the hash in the replicafiles array.
+		for(int x=0; x<numReplicas; x++) {
+			String replica = filename+x;
+			replicafiles[x] = Hash.hashOf(replica);
+		}
 	}
 	
     /**
@@ -97,6 +101,18 @@ public class FileManager {
     	// call the saveFileContent() on the successor and set isPrimary=true if logic above is true otherwise set isPrimary=false
     	
     	// increment counter
+    	
+    	createReplicaFiles();
+    	for(int x = 0; x < replicafiles.length; x++) {
+    		BigInteger replica = replicafiles[x];
+    		NodeInterface succ = chordnode.findSuccessor(replica);
+    		
+    		succ.addKey(replica);
+    		
+    		succ.saveFileContent(filename, replica, bytesOfFile, counter==index);
+    		counter++;
+    	}
+    		
 		return counter;
     }
 	
@@ -109,21 +125,20 @@ public class FileManager {
 	public Set<Message> requestActiveNodesForFile(String filename) throws RemoteException {
 
 		this.filename = filename;
-		activeNodesforFile = new HashSet<Message>(); 
-
-		// Task: Given a filename, find all the peers that hold a copy of this file
+		Set<Message> succinfo = new HashSet<Message>();
+		createReplicaFiles();
 		
-		// generate the N replicas from the filename by calling createReplicaFiles()
 		
-		// iterate over the replicas of the file
+		for(int x = 0; x < replicafiles.length; x++) {
+			BigInteger replica = replicafiles[x];
+			NodeInterface succ = chordnode.findSuccessor(replica);
+			Message msg = succ.getFilesMetadata(replica);
+			succinfo.add(msg);
+		}
 		
-		// for each replica, do findSuccessor(replica) that returns successor s.
+		this.activeNodesforFile = succinfo;
 		
-		// get the metadata (Message) of the replica from the successor (i.e., active peer) of the file
-		
-		// save the metadata in the set activeNodesforFile.
-		
-		return activeNodesforFile;
+		return succinfo;
 	}
 	
 	/**
@@ -141,6 +156,11 @@ public class FileManager {
 		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
 		
 		// return the primary when found (i.e., use Util.getProcessStub to get the stub and return it)
+		for(Message msg : activeNodesforFile) {
+			if(msg.isPrimaryServer())
+				return Util.getProcessStub(msg.getNodeName(), msg.getPort());
+			
+		}
 		
 		return null; 
 	}
